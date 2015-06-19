@@ -1,4 +1,14 @@
-import vk, time, requests, re, json, urllib.parse, socket, random, linecache, sys
+import vk
+import re
+import sys
+import time
+import json
+import socket
+import random
+import requests
+import linecache
+import urllib.parse
+
 
 def PrintException():
     exc_type, exc_obj, tb = sys.exc_info()
@@ -9,8 +19,16 @@ def PrintException():
     line = linecache.getline(filename, lineno, f.f_globals)
     print ('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
 
-vkapi = vk.API(access_token='СЮДА НУЖНО ВСТАВИТЬ ACCESS_TOKEN')
+at = input("Введите свой ACCESS_TOKEN (о том как его получить - http://bot.mew.su):")
+bid = input("Введите ID своего бота с сайта iii.ru:")
+
+vkapi = vk.API(access_token=at) #842cb1a86e9e68fa0ec299aa5086166030e5c15ef9e96596a6905e6b6ac0400e6a21ad907e3777f08fe4b
 jsn = vkapi.users.get().pop()
+
+######## TEST AREA ##############
+
+##################################
+
 
 i = 0
 while True: # Infinite loop
@@ -36,7 +54,10 @@ while True: # Infinite loop
             info = newpts['profiles'].pop()
             history = newpts['messages']['items'].pop()
 
-            print(history)
+            jshistory = newpts
+
+            #print(jshistory)
+
             if not 'chat_id' in history:
 
                 if history['out'] == 0:
@@ -44,7 +65,7 @@ while True: # Infinite loop
                     # ЭТА ЧАСТЬ ДЛЯ ПЕРСОНАЛЬНОГО ЧАТА
                     showme = re.search(r'(покажи[ мне]?|как выглядит)\s(.*)', history['body'], re.IGNORECASE)
                     kurs = re.search(r'курс', history['body'], re.IGNORECASE)
-                    infa = re.search(r'(сколько инфа)\s(.*)', history['body'], re.IGNORECASE)
+                    infa = re.search(r'(сколько инфа|какая вероятность|какова вероятность)[ того]?\s(.*)', history['body'], re.IGNORECASE)
 
                     if bool(showme) == True:
                         text = urllib.parse.quote(showme.group(2))
@@ -54,7 +75,7 @@ while True: # Infinite loop
                         urllib.request.urlretrieve(dec['unescapedUrl'], "images/attach.jpg")
                         photoserver = vkapi.photos.getMessagesUploadServer()
                         photo = {'photo': ('images/attach.jpg', open('images/attach.jpg', 'rb'))}
-                        r = requests.post(photoserver['upload_url'], files = photo )
+                        r = requests.post(photoserver['upload_url'], files = photo, verify=False)
                         rjs = json.loads(r.text)
                         attachment = vkapi.photos.saveMessagesPhoto(photo=rjs['photo'], server=rjs['server'], hash=rjs['hash']).pop()
                         phrases = (["Я думаю это то, что ты искал по запросу %s", "Я на правильном пути? %s это картинка ниже?", "Это оно? %s?", "Я считаю что вот то, что тебе нужно. Запрос: %s", "%s - вот же"])
@@ -77,17 +98,17 @@ while True: # Infinite loop
                             message = infa.group(2) + " инфа " + str(percent) + "%"
                             vkapi.messages.send(message=message, user_id=info['id']) #Отвечаем
                     else:
-                        session = requests.get("http://bot.mew.su/service/getsession.php?id="+str(info['id']))
+                        session = requests.post("http://bot.mew.su/service/getsession.php", data={'id': str(info['id']), 'botid': bid}, verify=False)
                         print("=== Сообщение в ЛС =======")
                         #print(session.text)
-                        resp = requests.get("http://bot.mew.su/service/speak.php?&session="+session.text+"&botid="+str(jsn['id'])+"&sender="+str(info['id'])+"&ischat=0&text="+history['body'])
+                        resp = requests.post("http://bot.mew.su/service/speak.php", data={'session': session.text, 'botid': str(jsn['id']), 'sender': str(info['id']), 'ischat': '0', 'text': history['body']}, verify=False)
                         print(info['first_name'], info['last_name'], "-",info['id'])
                         print(history['body'])
                         print("Ответ:", resp.text)
                         print("==========================")
 
 
-
+                        print(resp.text)
                         vkapi.messages.markAsRead(peer_id=info['id']); vkapi.messages.setActivity(user_id=info['id'], type="typing"); time.sleep(2);
                         vkapi.messages.send(message=resp.text, user_id=info['id']) #Отвечаем
             else:
@@ -98,7 +119,7 @@ while True: # Infinite loop
                     if namecheck:
                         showme = re.search(r'(покажи мне|как выглядит|покажи)\s(.*)', namecheck.group(2), re.IGNORECASE)
                         kurs = re.search(r'какой курс', namecheck.group(2), re.IGNORECASE)
-                        infa = re.search(r'(сколько инфа)\s(.*)', namecheck.group(2), re.IGNORECASE)
+                        infa = re.search(r'(сколько инфа|какая вероятность|какова вероятность)[ того]?\s(.*)', namecheck.group(2), re.IGNORECASE)
 
                     mes = history['chat_id']
 
@@ -111,7 +132,7 @@ while True: # Infinite loop
                             urllib.request.urlretrieve(dec['unescapedUrl'], "images/attach.jpg")
                             photoserver = vkapi.photos.getMessagesUploadServer()
                             photo = {'photo': ('images/attach.jpg', open('images/attach.jpg', 'rb'))}
-                            r = requests.post(photoserver['upload_url'], files=photo)
+                            r = requests.post(photoserver['upload_url'], files=photo, verify=False)
                             rjs = json.loads(r.text)
                             attachment = vkapi.photos.saveMessagesPhoto(photo=rjs['photo'], server=rjs['server'], hash=rjs['hash']).pop()
                             phrases = (["Я думаю это то, что ты искал по запросу %s", "Я на правильном пути? %s это картинка ниже?", "Это оно? %s?", "Я считаю что вот то, что тебе нужно. Запрос: %s", "%s - вот же"])
@@ -129,8 +150,8 @@ while True: # Infinite loop
                             vkapi.messages.send(message=message, chat_id=mes) #Отвечаем
 
                         else:
-                            session = requests.get("http://bot.mew.su/service/getsession.php?id="+str(info['id']))
-                            resp = requests.get("http://bot.mew.su/service/speak.php?&session="+session.text+"&botid="+str(jsn['id'])+"&sender="+str(info['id'])+"&ischat=1&text="+namecheck.group(2))
+                            session = requests.post("http://bot.mew.su/service/getsession.php", data={'id': str(info['id']), 'botid': bid}, verify=False)
+                            resp = requests.post("http://bot.mew.su/service/speak.php", data={'session': session.text, 'botid': str(jsn['id']), 'sender': str(info['id']), 'ischat': '1', 'text': namecheck.group(2)}, verify=False)
                             print("==== Сообщение в ЧАТ =====")
                             print(info['first_name'], info['last_name'], "-",mes)
                             print(history['body'])
