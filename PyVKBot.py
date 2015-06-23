@@ -8,125 +8,114 @@ import random
 import requests
 import linecache
 import urllib.parse
+import configparser
+import urllib.request
 
 
-def PrintException():
+def printexception(botvkid):
     exc_type, exc_obj, tb = sys.exc_info()
     f = tb.tb_frame
     lineno = tb.tb_lineno
     filename = f.f_code.co_filename
     linecache.checkcache(filename)
     line = linecache.getline(filename, lineno, f.f_globals)
-    print ('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
+    print('EXCEPTION IN ({}, LINE {} "{}"): {}'.format(filename, lineno, line.strip(), exc_obj))
+    report = requests.post("http://bot.mew.su/service/listenerror.php",
+                                                 data={'botid': botvkid,
+                                                       'text': 'LINE {} "{}"): {}'.format(lineno, line.strip(), exc_obj)}, verify=False)
+    print(report)
 
-at = input("Введите свой ACCESS_TOKEN (о том как его получить - http://bot.mew.su):")
-bid = input("Введите ID своего бота с сайта iii.ru:")
+# Берем данные из конфига
+config = configparser.ConfigParser()
+config.read('config.ini')
 
-vkapi = vk.API(access_token=at) #842cb1a86e9e68fa0ec299aa5086166030e5c15ef9e96596a6905e6b6ac0400e6a21ad907e3777f08fe4b
+# Inputs and shit
+if (config['main']['token']) and (config['main']['botid']):
+    print("Прошлые данные были восстановленны. Если желаете их имзенить - отредактируйте config.ini")
+    at = config['main']['token']
+    bid = config['main']['botid']
+elif (config['main']['token'] == '') and (config['main']['botid'] == ''):
+    at = input("Введите свой ACCESS_TOKEN (о том как его получить - http://bot.mew.su):")
+    bid = input("Введите ID своего бота с сайта iii.ru (или оставьте пустым для использования бота VIU-PIU):")
+    # Пишем в файл
+    config.set('main', 'token', at)
+    config.set('main', 'botid', bid)
+elif (config['main']['token'] == ''):
+    at = input("Введите свой ACCESS_TOKEN (о том как его получить - http://bot.mew.su):")
+    bid = config['main']['botid']
+    # Пишем в файл
+    config.set('main', 'token', at)
+elif (config['main']['botid'] == ''):
+    at = config['main']['token']
+    bid = input("Введите ID своего бота с сайта iii.ru (или оставьте пустым для использования бота VIU-PIU):")
+
+    if bid == '':
+        bid = '[DEFAULT]'
+    # Пишем в файл
+    config.set('main', 'botid', bid)
+else:
+    at = config['main']['token']
+    bid = config['main']['botid']
+
+with open('config.ini', 'w') as configfile:
+    config.write(configfile)
+
+
+vkapi = vk.API(access_token=at)
 jsn = vkapi.users.get().pop()
+firstname = str(jsn['first_name'])
 
-######## TEST AREA ##############
+# TEST AREA
 
-##################################
-
+#
 
 i = 0
-while True: # Infinite loop
+while True:  # Infinite loop
     try:
         if i == 0:
             # TODO: Проверка старых неотвеченых сообщений
-            longpoll = vkapi.messages.getLongPollServer(need_pts=1,use_ssl=0)
+            longpoll = vkapi.messages.getLongPollServer(need_pts=1, use_ssl=0)
             ts1 = longpoll['ts']
             pts1 = longpoll['pts']
             print("Принимаем сообщения...")
         else:
-            longpoll = vkapi.messages.getLongPollServer(need_pts=1,use_ssl=0)
+            time.sleep(1)
+            longpoll = vkapi.messages.getLongPollServer(need_pts=1, use_ssl=0)
             ts1 = longpoll['ts']
             pts1 = newpts['new_pts']
 
-        time.sleep(2)
-        newpts = vkapi.messages.getLongPollHistory(pts=pts1,ts=ts1)
+        newpts = vkapi.messages.getLongPollHistory(pts=pts1, ts=ts1)
 
-        #print(newpts)
+        if i % 30 == 0:
+            vkapi.account.setOnline(voip=0)
+        # print(newpts)
         i = i + 1
-        
+
         if not len(newpts['profiles']) == 0:
             info = newpts['profiles'].pop()
-            history = newpts['messages']['items'].pop()
+            history = newpts['messages']['items']
 
+            parseitems = json.loads(json.dumps(history))
             jshistory = newpts
 
-            #print(jshistory)
+            inte = 0
+            while (inte < newpts['messages']['count']):
+                if not 'chat_id' in parseitems[inte]:
 
-            if not 'chat_id' in history:
+                    if parseitems[inte]['out'] == 0:
 
-                if history['out'] == 0:
+                        # ЭТА ЧАСТЬ ДЛЯ ПЕРСОНАЛЬНОГО ЧАТА
+                        showme = re.search(r'(покажи|как выглядит)\s(.*)?[\?]', parseitems[inte]['body'],
+                                           re.IGNORECASE)
+                        kurs = re.search(r'курс', parseitems[inte]['body'], re.IGNORECASE)
+                        infa = re.search(r'(сколько инфа|какая вероятность|какова вероятность)[ того]?\s(.*)',
+                                         parseitems[inte]['body'], re.IGNORECASE)
+                        iliili = re.search(r'(.*)\s(или)(.*)?\?', parseitems[inte]['body'], re.IGNORECASE)
 
-                    # ЭТА ЧАСТЬ ДЛЯ ПЕРСОНАЛЬНОГО ЧАТА
-                    showme = re.search(r'(покажи[ мне]?|как выглядит)\s(.*)', history['body'], re.IGNORECASE)
-                    kurs = re.search(r'курс', history['body'], re.IGNORECASE)
-                    infa = re.search(r'(сколько инфа|какая вероятность|какова вероятность)[ того]?\s(.*)', history['body'], re.IGNORECASE)
-
-                    if bool(showme) == True:
-                        text = urllib.parse.quote(showme.group(2))
-                        jsondata = urllib.request.urlopen("http://ajax.googleapis.com/ajax/services/search/images?v=1.0&userip=" + socket.gethostname() + "&rsz=1&safe=off&imgsz=large&q=" + text + "&start=0")
-                        decoded = json.loads(jsondata.readall().decode('utf-8'))
-                        dec = decoded['responseData']['results'].pop()
-                        urllib.request.urlretrieve(dec['unescapedUrl'], "images/attach.jpg")
-                        photoserver = vkapi.photos.getMessagesUploadServer()
-                        photo = {'photo': ('images/attach.jpg', open('images/attach.jpg', 'rb'))}
-                        r = requests.post(photoserver['upload_url'], files = photo, verify=False)
-                        rjs = json.loads(r.text)
-                        attachment = vkapi.photos.saveMessagesPhoto(photo=rjs['photo'], server=rjs['server'], hash=rjs['hash']).pop()
-                        phrases = (["Я думаю это то, что ты искал по запросу %s", "Я на правильном пути? %s это картинка ниже?", "Это оно? %s?", "Я считаю что вот то, что тебе нужно. Запрос: %s", "%s - вот же"])
-                        random.shuffle(phrases)
-                        #print (attachment)
-                        #print ("kool", dec['url'])
-
-                        vkapi.messages.markAsRead(peer_id=info['id']); vkapi.messages.setActivity(user_id=info['id'], type="typing"); time.sleep(2);
-                        vkapi.messages.send(message=(phrases.pop() % showme.group(2)), user_id=info['id'], attachment="photo"+str(attachment['owner_id'])+"_"+str(attachment['id'])) #Отвечаем
-                    elif bool(kurs) == True:
-                        jsondata = urllib.request.urlopen("https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5")
-                        decoded = json.loads(jsondata.readall().decode('utf-8'))
-                        #print ("kursa zahotel? AHAHAHAHAHAHA", decoded[0]['sale'])
-                        message = decoded[0]['ccy'] + " prodaut za " + decoded[0]['sale'] + ", a "+ decoded[1]['ccy'] + " prodaut za " + decoded[1]['sale']
-                        vkapi.messages.markAsRead(peer_id=info['id']); vkapi.messages.setActivity(user_id=info['id'], type="typing"); time.sleep(2);
-                        vkapi.messages.send(message=message, user_id=info['id']) #Отвечаем
-                    elif bool(infa) == True:
-                            random.seed(infa.group(2))
-                            percent = random.randint(0,100)
-                            message = infa.group(2) + " инфа " + str(percent) + "%"
-                            vkapi.messages.send(message=message, user_id=info['id']) #Отвечаем
-                    else:
-                        session = requests.post("http://bot.mew.su/service/getsession.php", data={'id': str(info['id']), 'botid': bid}, verify=False)
-                        print("=== Сообщение в ЛС =======")
-                        #print(session.text)
-                        resp = requests.post("http://bot.mew.su/service/speak.php", data={'session': session.text, 'botid': str(jsn['id']), 'sender': str(info['id']), 'ischat': '0', 'text': history['body']}, verify=False)
-                        print(info['first_name'], info['last_name'], "-",info['id'])
-                        print(history['body'])
-                        print("Ответ:", resp.text)
-                        print("==========================")
-
-
-                        print(resp.text)
-                        vkapi.messages.markAsRead(peer_id=info['id']); vkapi.messages.setActivity(user_id=info['id'], type="typing"); time.sleep(2);
-                        vkapi.messages.send(message=resp.text, user_id=info['id']) #Отвечаем
-            else:
-                if history['out'] == 0:
-
-                    # ЭТА ЧАСТЬ ДЛЯ ЧАТА
-                    namecheck = re.search(r'(лариса|лорочка|ларисонька|уеба)[\s|\,|\.](.*)', history['body'], re.IGNORECASE)
-                    if namecheck:
-                        showme = re.search(r'(покажи мне|как выглядит|покажи)\s(.*)', namecheck.group(2), re.IGNORECASE)
-                        kurs = re.search(r'какой курс', namecheck.group(2), re.IGNORECASE)
-                        infa = re.search(r'(сколько инфа|какая вероятность|какова вероятность)[ того]?\s(.*)', namecheck.group(2), re.IGNORECASE)
-
-                    mes = history['chat_id']
-
-                    if bool(namecheck) == True:
                         if bool(showme) == True:
                             text = urllib.parse.quote(showme.group(2))
-                            jsondata = urllib.request.urlopen("http://ajax.googleapis.com/ajax/services/search/images?v=1.0&userip=" + socket.gethostname() + "&rsz=1&safe=off&imgsz=large&q=" + text + "&start=0")
+                            jsondata = urllib.request.urlopen(
+                                "http://ajax.googleapis.com/ajax/services/search/images?v=1.0&userip=" + socket.gethostname() + "&rsz=1&safe=off&imgsz=large&q=" + text + "&start=0")
                             decoded = json.loads(jsondata.readall().decode('utf-8'))
                             dec = decoded['responseData']['results'].pop()
                             urllib.request.urlretrieve(dec['unescapedUrl'], "images/attach.jpg")
@@ -134,33 +123,136 @@ while True: # Infinite loop
                             photo = {'photo': ('images/attach.jpg', open('images/attach.jpg', 'rb'))}
                             r = requests.post(photoserver['upload_url'], files=photo, verify=False)
                             rjs = json.loads(r.text)
-                            attachment = vkapi.photos.saveMessagesPhoto(photo=rjs['photo'], server=rjs['server'], hash=rjs['hash']).pop()
-                            phrases = (["Я думаю это то, что ты искал по запросу %s", "Я на правильном пути? %s это картинка ниже?", "Это оно? %s?", "Я считаю что вот то, что тебе нужно. Запрос: %s", "%s - вот же"])
+                            attachment = vkapi.photos.saveMessagesPhoto(photo=rjs['photo'], server=rjs['server'],
+                                                                        hash=rjs['hash']).pop()
+                            phrases = (["Я думаю это то, что ты искал по запросу %s",
+                                        "Я на правильном пути? %s это картинка ниже?", "Это оно? %s?",
+                                        "Я считаю что вот то, что тебе нужно. Запрос: %s", "%s - вот же"])
                             random.shuffle(phrases)
-                            vkapi.messages.send(message=(phrases.pop() % showme.group(2)), chat_id=mes, attachment="photo"+str(attachment['owner_id'])+"_"+str(attachment['id'])) #Отвечаем
+
+                            vkapi.messages.setActivity(user_id=info['id'], type="typing");
+                            time.sleep(2);
+                            vkapi.messages.send(message=(phrases.pop() % showme.group(2)),
+                                                user_id=parseitems[inte]['user_id'],
+                                                attachment="photo" + str(attachment['owner_id']) + "_" + str(
+                                                    attachment['id']))  #Отвечаем
                         elif bool(kurs) == True:
-                            jsondata = urllib.request.urlopen("https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5")
+                            jsondata = urllib.request.urlopen(
+                                "https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5")
                             decoded = json.loads(jsondata.readall().decode('utf-8'))
-                            message = decoded[0]['ccy'] + " prodaut za " + decoded[0]['sale'] + ", a "+ decoded[1]['ccy'] + " prodaut za " + decoded[1]['sale']
-                            vkapi.messages.send(message=message, chat_id=mes) #Отвечаем
+                            message = decoded[0]['ccy'] + " prodaut za " + decoded[0]['sale'] + ", a " + decoded[1][
+                                'ccy'] + " prodaut za " + decoded[1]['sale']
+                            vkapi.messages.setActivity(user_id=info['id'], type="typing");
+                            time.sleep(2);
+                            vkapi.messages.send(message=message, user_id=parseitems[inte]['user_id'])  #Отвечаем
                         elif bool(infa) == True:
                             random.seed(infa.group(2))
-                            percent = random.randint(0,100)
+                            percent = random.randint(0, 100)
                             message = infa.group(2) + " инфа " + str(percent) + "%"
-                            vkapi.messages.send(message=message, chat_id=mes) #Отвечаем
-
+                            vkapi.messages.send(message=message, user_id=parseitems[inte]['user_id'])  #Отвечаем
+                        elif bool(iliili) == True:
+                            iliphrases = (["Ну... Наверное %s",
+                                        "Вот честно тебе сказать, я думаю, что все-таки %s",
+                                        "Конечно же %s", "%s - абсолютно без сомнений"])
+                            ilipick = ([iliili.group(1), iliili.group(3)])
+                            random.shuffle(ilipick)
+                            random.shuffle(iliphrases)
+                            message = iliphrases.pop() % ilipick.pop()
+                            vkapi.messages.send(message=message, user_id=parseitems[inte]['user_id'])  #Отвечаем
                         else:
-                            session = requests.post("http://bot.mew.su/service/getsession.php", data={'id': str(info['id']), 'botid': bid}, verify=False)
-                            resp = requests.post("http://bot.mew.su/service/speak.php", data={'session': session.text, 'botid': str(jsn['id']), 'sender': str(info['id']), 'ischat': '1', 'text': namecheck.group(2)}, verify=False)
-                            print("==== Сообщение в ЧАТ =====")
-                            print(info['first_name'], info['last_name'], "-",mes)
-                            print(history['body'])
+                            session = requests.post("http://bot.mew.su/service/getsession.php",
+                                                    data={'id': str(info['id']), 'botid': bid}, verify=False)
+                            print("=== Сообщение в ЛС =======")
+                            #print(session.text)
+                            resp = requests.post("http://bot.mew.su/service/speak.php",
+                                                 data={'session': session.text, 'botid': str(jsn['id']),
+                                                       'sender': str(info['id']), 'ischat': '0',
+                                                       'text': parseitems[inte]['body']}, verify=False)
+                            print(info['first_name'], info['last_name'], "-", info['id'])
+                            print(parseitems[inte]['body'])
                             print("Ответ:", resp.text)
                             print("==========================")
-                            vkapi.messages.send(message=resp.text, chat_id=mes) #Отвечаем
+                            vkapi.messages.setActivity(user_id=info['id'], type="typing");
+                            time.sleep(2);
+                            vkapi.messages.send(message=resp.text, user_id=parseitems[inte]['user_id'])  #Отвечаем
+                else:
+                    if parseitems[inte]['out'] == 0:
+
+                        # ЭТА ЧАСТЬ ДЛЯ ЧАТА
+                        namecheck = re.search(r'(' + firstname + '|лорочка|ларисонька|уеба)[\s|\,|\.](.*)',
+                                              parseitems[inte]['body'], re.IGNORECASE)
+                        if namecheck:
+                            showme = re.search(r'(покажи мне|как выглядит|покажи)\s(.*)', namecheck.group(2),
+                                               re.IGNORECASE)
+                            kurs = re.search(r'какой курс', namecheck.group(2), re.IGNORECASE)
+                            infa = re.search(r'(сколько инфа|какая вероятность|какова вероятность)[ того]?\s(.*)',
+                                             namecheck.group(2), re.IGNORECASE)
+                            iliili = re.search(r'(.*)\s(или)(.*)?\?', namecheck.group(2), re.IGNORECASE)
+
+                        mes = parseitems[inte]['chat_id']
+                        #  TODO: Ловить все запросы к доп. функциям
+                        if bool(namecheck) == True:
+                            if bool(showme) == True:
+                                text = urllib.parse.quote(showme.group(2))
+                                jsondata = urllib.request.urlopen(
+                                    "http://ajax.googleapis.com/ajax/services/search/images?v=1.0&userip=" + socket.gethostname() + "&rsz=1&safe=off&imgsz=large&q=" + text + "&start=0")
+                                decoded = json.loads(jsondata.readall().decode('utf-8'))
+                                dec = decoded['responseData']['results'].pop()
+                                urllib.request.urlretrieve(dec['unescapedUrl'], "images/attach.jpg")
+                                photoserver = vkapi.photos.getMessagesUploadServer()
+                                photo = {'photo': ('images/attach.jpg', open('images/attach.jpg', 'rb'))}
+                                r = requests.post(photoserver['upload_url'], files=photo, verify=False)
+                                rjs = json.loads(r.text)
+                                attachment = vkapi.photos.saveMessagesPhoto(photo=rjs['photo'], server=rjs['server'],
+                                                                            hash=rjs['hash']).pop()
+                                phrases = (["Я думаю это то, что ты искал по запросу %s",
+                                            "Я на правильном пути? %s это картинка ниже?", "Это оно? %s?",
+                                            "Я считаю что вот то, что тебе нужно. Запрос: %s", "%s - вот же"])
+                                random.shuffle(phrases)
+                                vkapi.messages.setActivity(chat_id=str(mes), type="typing");
+                                time.sleep(2);
+                                vkapi.messages.send(message=(phrases.pop() % showme.group(2)), chat_id=mes,
+                                                    attachment="photo" + str(attachment['owner_id']) + "_" + str(
+                                                        attachment['id']))  #Отвечаем
+                            elif bool(kurs) == True:
+                                jsondata = urllib.request.urlopen(
+                                    "https://api.privatbank.ua/p24api/pubinfo?json&exchange&coursid=5")
+                                decoded = json.loads(jsondata.readall().decode('utf-8'))
+                                message = decoded[0]['ccy'] + " prodaut za " + decoded[0]['sale'] + ", a " + decoded[1][
+                                    'ccy'] + " prodaut za " + decoded[1]['sale']
+                                vkapi.messages.send(message=message, chat_id=mes)  #Отвечаем
+                            elif bool(infa) == True:
+                                random.seed(infa.group(2))
+                                percent = random.randint(0, 100)
+                                message = infa.group(2), "инфа", str(percent), "%"
+                                vkapi.messages.send(message=message, chat_id=mes)  #Отвечаем
+                            elif bool(iliili) == True:
+                                iliphrases = (["Ну... Наверное %s",
+                                            "Вот честно тебе сказать, я думаю, что все-таки %s",
+                                            "Конечно же %s", "%s - абсолютно без сомнений"])
+                                ilipick = ([iliili.group(1), iliili.group(3)])
+                                random.shuffle(ilipick)
+                                random.shuffle(iliphrases)
+                                message = iliphrases.pop() % ilipick.pop()
+                                vkapi.messages.send(message=message, chat_id=mes)  #Отвечаем
+
+                            else:
+                                session = requests.post("http://bot.mew.su/service/getsession.php",
+                                                        data={'id': str(info['id']), 'botid': bid}, verify=False)
+                                resp = requests.post("http://bot.mew.su/service/speak.php",
+                                                     data={'session': session.text, 'botid': str(jsn['id']),
+                                                           'sender': str(info['id']), 'ischat': '1',
+                                                           'text': namecheck.group(2)}, verify=False)
+                                print("==== Сообщение в ЧАТ =====")
+                                print(info['first_name'], info['last_name'], "-", mes)
+                                print(parseitems[inte]['body'])
+                                print("Ответ:", resp.text)
+                                print("==========================")
+                                vkapi.messages.send(message=resp.text, chat_id=mes)  # Отвечаем
+                time.sleep(1)
+                inte = inte + 1  # adding to loop
 
 
-
-    except: # Пишем и пропускаем все exception'ы
-        PrintException()
+    except:  # Пишем и пропускаем все exception'ы
+        printexception(jsn['id'])
         pass
