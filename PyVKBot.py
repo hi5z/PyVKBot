@@ -23,7 +23,7 @@ def printexception(botvkid):
     report = requests.post("http://bot.mew.su/service/listenerror.php",
                                                  data={'botid': botvkid,
                                                        'text': 'LINE {} "{}"): {}'.format(lineno, line.strip(), exc_obj)}, verify=False)
-    print(report)
+version = '0.0.3.1'
 
 # Берем данные из конфига
 config = configparser.ConfigParser()
@@ -31,7 +31,7 @@ config.read('config.ini')
 
 # Inputs and shit
 if (config['main']['token']) and (config['main']['botid']):
-    print("Прошлые данные были восстановленны. Если желаете их имзенить - отредактируйте config.ini")
+    print("Прошлые данные были восстановлены. Если желаете их изменить - отредактируйте config.ini")
     at = config['main']['token']
     bid = config['main']['botid']
 elif (config['main']['token'] == '') and (config['main']['botid'] == ''):
@@ -167,7 +167,7 @@ while True:  # Infinite loop
                             resp = requests.post("http://bot.mew.su/service/speak.php",
                                                  data={'session': session.text, 'botid': str(jsn['id']),
                                                        'sender': str(info['id']), 'ischat': '0',
-                                                       'text': parseitems[inte]['body']}, verify=False)
+                                                       'text': parseitems[inte]['body'], 'version': version}, verify=False)
                             print(info['first_name'], info['last_name'], "-", info['id'])
                             print(parseitems[inte]['body'])
                             print("Ответ:", resp.text)
